@@ -49,6 +49,17 @@ import (
 // independent of the open/closed status of the Loquet,
 // and it is up to the user to assign meaning
 // to the closeVal, isClosed := Read() values received.
+//
+// The zero-value of a Loquet is viable, as the
+// WhenClosed returned channel is allocated lazily.
+// Since it contains a sync.Mutex, a Loquet value
+// must not be copied, and should always be
+// handled by a pointer.
+//
+// Notice that the generic parameter is a T but
+// all operations deal in *T. For
+// example, to work with a closeVal of type *Message,
+// simply call NewLoquet[Message](closeVal *Message).
 type Loquet[T any] struct {
 	mut sync.Mutex
 
@@ -65,7 +76,6 @@ type Loquet[T any] struct {
 func NewLoquet[T any](closeVal *T) *Loquet[T] {
 	return &Loquet[T]{
 		closeVal: closeVal,
-		ch:       make(chan struct{}),
 	}
 }
 
@@ -200,5 +210,9 @@ func (f *Loquet[T]) WhenClosed() <-chan struct{} {
 	f.mut.Lock()
 	defer f.mut.Unlock()
 
+	// allocated lazily so the zero-value Loquet is viable.
+	if f.ch == nil {
+		f.ch = make(chan struct{})
+	}
 	return f.ch
 }
