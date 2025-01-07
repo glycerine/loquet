@@ -69,13 +69,31 @@ func NewLoquet[T any](closeVal *T) *Loquet[T] {
 	}
 }
 
-// The Close() call can provide
-// an optional new closeVal value to over-rider
-// the closeVal set in NewLoquet(), or
-// Close(nil) is fine: the original NewLoquet(closeVal)
-// will be supplied on Read() in that case. This
-// avoids the Close() calling code needing to
-// know about the appropriate closeVal.
+// Close provides an idempotent close of the
+// WhenClosed returned channel. Multiple calls to Close
+// will result in only a single close of the
+// internal channel provided by WhenClosed().
+// This addresses a major design limitation of Go channels.
+// By using a Loquet instead of a raw Go channel,
+// you need not worry about panic from repeated
+// closing.
+//
+// Close takes an optional (possibly nil) new closeVal
+// value to update the current closeVal (from Set or NewLoquet).
+//
+// Close(nil) is fine too, and a no-op. In this case,
+// the internal closeVal will
+// not be updated. This avoids the Close() calling
+// code needing to know about the appropriate closeVal;
+// a frequent case when coordinating goroutine shutdown
+// from multiple origins.
+//
+// Close is also a no-op if the Loquet is already
+// closed. The supplied closeVal is then ignored
+// and the internal closeVal will not be updated.
+//
+// If you need to update the internal closeVal
+// without closing the Loquet, use Set or SetIfOpen.
 func (f *Loquet[T]) Close(closeVal *T) {
 	f.mut.Lock()
 	defer f.mut.Unlock()
@@ -100,8 +118,9 @@ func (f *Loquet[T]) Close(closeVal *T) {
 }
 
 // Set changes the closeVal without
-// actually closing the Loquet. It will change
-// the closeVal no matter the open/closed status
+// actually closing the Loquet (compare to Close).
+// That is, Set will change the closeVal no
+// matter the open/closed status
 // of the Loquet. Note, however, that if the
 // Loquet is already closed, then there is no guarantee that all
 // Read()-ers will have received the same closeVal.
@@ -109,10 +128,26 @@ func (f *Loquet[T]) Close(closeVal *T) {
 // is explicitly allowed (to provide for latch behavior).
 // The previously set closeVal is returned in old;
 // but this may commonly be ignored.
+//
+// Use SetIfOpen to set a new closeVal only
+// on open Loquets.
 func (f *Loquet[T]) Set(closeVal *T) (old *T) {
 	f.mut.Lock()
 	defer f.mut.Unlock()
 	old = f.closeVal
+	f.closeVal = closeVal
+	return
+}
+
+// SetIfOpen is a no-op if the Loquet is closed.
+// Otherwise, it behaves like Set().
+func (f *Loquet[T]) SetIfOpen(closeVal *T) (old *T) {
+	f.mut.Lock()
+	defer f.mut.Unlock()
+	old = f.closeVal
+	if f.isClosed {
+		return
+	}
 	f.closeVal = closeVal
 	return
 }
