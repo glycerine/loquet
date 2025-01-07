@@ -131,19 +131,21 @@ func (f *Loquet[T]) Set(closeVal *T) (old *T) {
 // then call Read() once it is closed.
 //
 /* For example:
-// ...
-// msg := &Message{}
-// status := NewLoquet[Message](msg)
-// ...
-// // to poll the status Loquet:
-// // (and because val may be useful even before closing)
-// val, isClosed := status.Read()
-//     ...
-// // to wait for the status Loquet to be closed:
-// select {
-// case <-status.WhenClosed():
-//	   val, isClosed := status.Read()
-//	   ... react to val... (isClosed will always be true here).
+~~~
+ ...
+ msg := &Message{}
+ status := NewLoquet[Message](msg)
+ ...
+ // to poll the status Loquet:
+ // (and because val may be useful even before closing)
+ val, isClosed := status.Read()
+     ...
+ // to wait for the status Loquet to be closed:
+ select {
+ case <-status.WhenClosed():
+	   val, isClosed := status.Read()
+      ... react to val... (isClosed will always be true here).
+~~~
 */
 func (f *Loquet[T]) Read() (closeVal *T, isClosed bool) {
 	f.mut.Lock()
