@@ -12,12 +12,17 @@ type Message struct {
 
 func doJob(msg *Message, reportBackOn *loquet.Loquet[Message]) {
 
+	var err error
 	defer reportBackOn.Close(msg)
 	//...
 	// might return early on error
-	// msg.Err = someErr
+	if err != nil {
+		fmt.Printf("job is erroring out.")
+		msg.Err = fmt.Errorf("some error")
+		return
+	}
 	// on success, leave msg.Err == nil
-	fmt.Printf("job completed with msg.Err = '%v'\n", msg.Err)
+	fmt.Printf("job completed successfully.")
 }
 
 func ExampleLoquetUse() {
@@ -29,20 +34,25 @@ func ExampleLoquetUse() {
 
 	go doJob(msg, status)
 
+	// poll for status like this.
 	closeVal, isClosed := status.Read()
-	fmt.Printf("status.Read() returned isClosed=%v, closeVal = '%#v'\n", isClosed, closeVal)
+	fmt.Printf("status.Read() returned isClosed=%v, "+
+		"closeVal = '%#v'\n", isClosed, closeVal)
 
+	// wait for close like this.
 	select {
-	//case latest, open = <-status.ReadCh():
-	//	fmt.Printf("status.ReadCh returned open=%v, latest = '%#v'", open, latest)
+
 	case <-status.WhenClosed():
 		latest, isClosed := status.Read()
 		if !isClosed {
 			panic("(should be) impossible, isClosed should be true if WhenClosed() returns! so we can always latest, _ = status.Read() after WhenClosed()")
 		}
-		fmt.Printf("status.ReadCh returned isClosed=%v, latest = '%#v'\n", isClosed, latest)
+		fmt.Printf("status.ReadCh returned "+
+			"isClosed=%v, latest = '%#v'\n", isClosed, latest)
+
 	case <-serviceShutdownCh:
-		fmt.Printf("good: service shutting down, we were not blocked permanently on the <-status.Read() above.\n")
+		fmt.Printf("good: service shutting down, we were not blocked " +
+			"permanently on the <-status.Read() above.\n")
 		return
 	}
 
