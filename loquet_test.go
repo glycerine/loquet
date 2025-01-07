@@ -42,7 +42,7 @@ func ExampleLoquetUse() {
 	// wait for close like this.
 	select {
 
-	case <-status.WhenClosed():
+	case <-status.WhenClosed:
 		latest, isClosed := status.Read()
 		if !isClosed {
 			panic("(should be) impossible, isClosed should be true if WhenClosed() returns! so we can always latest, _ = status.Read() after WhenClosed()")

@@ -67,9 +67,17 @@ import (
 type Loquet[T any] struct {
 	mut sync.Mutex
 
-	// ch is closed exactly
-	// once on the first Close() call.
-	ch chan struct{}
+	// WhenClose is closed exactly once on the
+	// first Loquet.Close() call.
+	// Users typically call Loquet.Read() after noting
+	// that WhenClosed has been closed in order
+	// to retreive the current closeVal. This two-step
+	// process of notification (on a channel) followed by
+	// a Read is needed because a closed Go
+	// channel only returns the zero value; Loquet was
+	// created to work around this limitation.
+	// Users must never close(WhenClosed) themselves.
+	WhenClosed chan struct{}
 
 	// closeVal and isClosed are the values that
 	// we report from Read().
@@ -79,16 +87,16 @@ type Loquet[T any] struct {
 
 func NewLoquet[T any](closeVal *T) *Loquet[T] {
 	return &Loquet[T]{
-		mut:      sync.Mutex{},
-		ch:       make(chan struct{}),
-		closeVal: closeVal,
+		mut:        sync.Mutex{},
+		WhenClosed: make(chan struct{}),
+		closeVal:   closeVal,
 	}
 }
 
 // Close provides an idempotent close of the
-// WhenClosed returned channel. Multiple calls to Close
-// will result in only a single close of the
-// internal channel provided by WhenClosed().
+// WhenClosed channel. Multiple calls to Close
+// will result in only a single close of
+// WhenClosed.
 // This addresses a major design limitation of Go channels.
 // By using a Loquet instead of a raw Go channel,
 // you need not worry about panic from repeated
@@ -130,7 +138,7 @@ func (f *Loquet[T]) Close(closeVal *T) {
 	if closeVal != nil {
 		f.closeVal = closeVal
 	}
-	close(f.ch)
+	close(f.WhenClosed)
 }
 
 // Set changes the closeVal without
@@ -177,8 +185,8 @@ func (f *Loquet[T]) SetIfOpen(closeVal *T) (old *T) {
 // have initialized the closeVal during NewLoquet(closeVal),
 // or may have subsequently called Set(closeVal).
 //
-// To avoid busy waiting, use the channal obtained
-// by WhenClosed() in your select statements, and
+// To avoid busy waiting, use the WhenClosed channel
+// in your select statements, and
 // then call Read() once it is closed.
 //
 /* For example:
@@ -203,22 +211,4 @@ func (f *Loquet[T]) Read() (closeVal *T, isClosed bool) {
 	closeVal, isClosed = f.closeVal, f.isClosed
 	f.mut.Unlock()
 	return
-}
-
-// WhenClosed provides a channel that will be
-// closed when Loquet.Close() is called. Users
-// then call Loquet.Read() to retreive the current
-// closeVal. This two-step process of notification
-// then Read is needed because a closed Go
-// channel only returns the zero value; Loquet was
-// created to work around this limitation.
-func (f *Loquet[T]) WhenClosed() <-chan struct{} {
-	f.mut.Lock()
-	defer f.mut.Unlock()
-
-	// lazily allocate so zero-value of Loquet is viable.
-	if f.ch == nil {
-		f.ch = make(chan struct{})
-	}
-	return f.ch
 }
