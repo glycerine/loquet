@@ -50,15 +50,19 @@ import (
 // and it is up to the user to assign meaning
 // to the closeVal, isClosed := Read() values received.
 //
-// The zero-value of a Loquet is viable, as the
-// WhenClosed returned channel is allocated lazily.
-// Since it contains a sync.Mutex, a Loquet value
-// must not be copied, and should always be
-// handled by a pointer.
+// A call to NewLoquet() is required to produce a new Loquet.
+// Although the zero-value of a Loquet is viable,
+// it contains a sync.Mutex, and so cannot be
+// copied after first use anyway.
+// For this reason, and to keep the shared internal
+// state correct, user code should always deal with
+// *Loquet pointers. Passing a Loquet by value instead
+// of by a *Loquet pointer will result in incorrect,
+// undefined behavior.
 //
-// Notice that the generic parameter is a T but
-// all operations deal in *T. For
-// example, to work with a closeVal of type *Message,
+// Notice that the generic parameter is a T in Loquet[T], but
+// all operations deal in *T. For example, to work
+// with a closeVal of type *Message,
 // simply call NewLoquet[Message](closeVal *Message).
 type Loquet[T any] struct {
 	mut sync.Mutex
@@ -75,6 +79,8 @@ type Loquet[T any] struct {
 
 func NewLoquet[T any](closeVal *T) *Loquet[T] {
 	return &Loquet[T]{
+		mut:      sync.Mutex{},
+		ch:       make(chan struct{}),
 		closeVal: closeVal,
 	}
 }
@@ -201,7 +207,7 @@ func (f *Loquet[T]) Read() (closeVal *T, isClosed bool) {
 
 // WhenClosed provides a channel that will be
 // closed when Loquet.Close() is called. Users
-// can then call Loquet.Read() to retreive the current
+// then call Loquet.Read() to retreive the current
 // closeVal. This two-step process of notification
 // then Read is needed because a closed Go
 // channel only returns the zero value; Loquet was
@@ -210,7 +216,7 @@ func (f *Loquet[T]) WhenClosed() <-chan struct{} {
 	f.mut.Lock()
 	defer f.mut.Unlock()
 
-	// allocated lazily so the zero-value Loquet is viable.
+	// lazily allocate so zero-value of Loquet is viable.
 	if f.ch == nil {
 		f.ch = make(chan struct{})
 	}
