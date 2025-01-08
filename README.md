@@ -10,13 +10,13 @@ broadcasting a value in two steps/calls, but you'll
 get the idea from this quick example:
 
 ~~~
-    closeVal := &Message{}
-    myLoquetChan := loquet.NewChan[Message](closeVal)
-    myLoquetChan.Close()
-	select {
-	    case <-myLoquetChan.WhenClosed():
-           val, _ := myLoqetChan.Read() // val will be closeVal 
-           ...
+closeVal := &Message{}
+myLoquetChan := loquet.NewChan[Message](closeVal)
+myLoquetChan.Close()
+select {
+    case <-myLoquetChan.WhenClosed():
+        val, _ := myLoqetChan.Read() // val will be closeVal 
+        ...
 ~~~
 
 The package docs have full details: https://pkg.go.dev/github.com/glycerine/loquet
