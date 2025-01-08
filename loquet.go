@@ -106,23 +106,6 @@ type Chan[T any] struct {
 	// we report from Read().
 	closeVal *T
 	isClosed bool
-
-	// how many old versions to retain?
-	retain int
-
-	// the current version of closeVal
-	version int
-
-	// the old versions, len == retain.
-	past []VersionVal[T]
-}
-
-// VersionVal is used to store the past
-// versions of the closeVal in Val, along with
-// their version numbers in Version.
-type VersionVal[T any] struct {
-	Version int
-	Val     *T
 }
 
 // WhenClosed returns a channel that
@@ -163,23 +146,11 @@ func (f *Chan[T]) WhenClosed() <-chan struct{} {
 // all operations deal in *T. For example, if you have
 // `var closeVal *Message = &Message{}`, then
 // simply call `NewChan[Message](closeVal)`.
-//
-// The retainVersions count provides for
-// saving a set of past versions internally.
-// It will typically be 0, but can be positive.
-// A negative retainVersions will induce a panic.
-func NewChan[T any](closeVal *T, retainVersions int) (f *Chan[T]) {
+func NewChan[T any](closeVal *T) (f *Chan[T]) {
 	f = &Chan[T]{
 		mut:        sync.Mutex{},
 		whenClosed: make(chan struct{}),
 		closeVal:   closeVal,
-		retain:     retainVersions,
-	}
-	if f.retain > 0 {
-		f.past = make([]VersionVal[T], 0, f.retain+1)
-		f.past[0] = VersionVal[T]{Version: f.version, Val: closeVal}
-	} else if f.retain < 0 {
-		panic("retainVersions cannot be negative")
 	}
 	return f
 }
@@ -215,13 +186,6 @@ func (f *Chan[T]) CloseWith(closeVal *T) error {
 	}
 	f.isClosed = true
 	f.closeVal = closeVal
-	f.version++
-	if f.retain > 0 {
-		f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
-		if len(f.past) > f.retain {
-			f.past = f.past[1:] // discard the oldest
-		}
-	}
 	close(f.whenClosed)
 	return nil
 }
@@ -270,13 +234,6 @@ func (f *Chan[T]) Set(closeVal *T) (old *T) {
 	defer f.mut.Unlock()
 	old = f.closeVal
 	f.closeVal = closeVal
-	f.version++
-	if f.retain > 0 {
-		f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
-		if len(f.past) > f.retain {
-			f.past = f.past[1:] // discard the oldest
-		}
-	}
 	return
 }
 
@@ -294,13 +251,6 @@ func (f *Chan[T]) SetIfOpen(closeVal *T) (old *T) {
 		return
 	}
 	f.closeVal = closeVal
-	f.version++
-	if f.retain > 0 {
-		f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
-		if len(f.past) > f.retain {
-			f.past = f.past[1:] // discard the oldest
-		}
-	}
 	return
 }
 
@@ -342,31 +292,6 @@ func (f *Chan[T]) Read() (closeVal *T, isClosed bool) {
 	return
 }
 
-// ReadVersion is like Read, but also returns
-// the version of the closeVal it is returning.
-func (f *Chan[T]) ReadVersion() (closeVal *T, isClosed bool, version int) {
-	f.mut.Lock()
-	closeVal = f.closeVal
-	isClosed = f.isClosed
-	version = f.version
-	f.mut.Unlock()
-	return
-}
-
-// ReadPast copies the version history into
-// the provided slice d, returning the number of history items
-// that were copied. The oldest version will
-// be at d[0], the most recent (current) version will
-// be at d[numCopied-1]. Callers will typically
-// want to do d = d[:numCopied] after the call,
-// to properly size their d slice.
-func (f *Chan[T]) ReadPast(d []VersionVal[T]) (numCopied int) {
-	f.mut.Lock()
-	defer f.mut.Unlock()
-	numCopied = copy(d, f.past)
-	return
-}
-
 // ReOpen re-opens the Chan, atomically setting
 // the supplied closeVal on it. See also Open.
 // Calling ReOpen on an already open Chan
@@ -376,13 +301,6 @@ func (f *Chan[T]) ReOpen(closeVal *T) {
 	f.mut.Lock()
 	defer f.mut.Unlock()
 	f.closeVal = closeVal
-	f.version++
-	if f.retain > 0 {
-		f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
-		if len(f.past) > f.retain {
-			f.past = f.past[1:] // discard the oldest
-		}
-	}
 
 	if !f.isClosed {
 		return

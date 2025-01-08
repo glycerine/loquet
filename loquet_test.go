@@ -32,7 +32,7 @@ func ExampleLoquetChanUse() {
 	serviceShutdownCh := make(chan struct{})
 
 	msg := &Message{}
-	status := loquet.NewChan[Message](msg, 0)
+	status := loquet.NewChan[Message](msg)
 
 	go doJob(msg, status)
 
@@ -62,7 +62,7 @@ func ExampleLoquetChanUse() {
 
 func TestOpenStopsClose(t *testing.T) {
 
-	ch := loquet.NewChan[int](nil, 0)
+	ch := loquet.NewChan[int](nil)
 	insideLoop := make(chan bool)
 	goroDone := make(chan bool)
 
