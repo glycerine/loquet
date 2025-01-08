@@ -27,7 +27,7 @@ import (
 // Unlike standard Go channels, a Chan
 // is not useful for queuing up many items to
 // be read, nor for assigning a series of
-// items each to a single readers. Instead,
+// items each to a single reader. Instead,
 // Chan significantly enhances the broadcast
 // capabilities inherent in closing a channel.
 //
@@ -52,11 +52,11 @@ import (
 // It can remain blissfully unaware of the appropriate
 // closeVal if it has already been set correctly.
 //
-// Chan.Close() will close the member WhenClosed channel,
+// Chan.Close() will close the WhenClosed() returned channel,
 // if it has not already been closed.
 // Thus it is safe to call Close() multiple times, knowing
 // this will not result in a panic. The underlying
-// WhenClosed channel is only ever closed
+// WhenClosed() channel is only ever closed
 // once.
 //
 // 3) Lastly, the closeVal can also be updated with
@@ -198,17 +198,13 @@ func (f *Chan[T]) Close(closeVal *T) {
 // Set changes the closeVal without
 // actually closing the Chan (compare to Close).
 // That is, Set will change the closeVal no
-// matter the open/closed status
-// of the Chan. Note, however, that if the
-// Chan is already closed, then there is no guarantee that all
-// Read()-ers will have received the same closeVal.
-// Since this may be a common valid use case, it
-// is explicitly allowed (to provide for latch behavior).
+// matter if the Chan is open or close.
+//
 // The previously set closeVal is returned in old;
 // but this may commonly be ignored.
 //
 // Use SetIfOpen to set a new closeVal only
-// on open Chans.
+// if the Chan is still open.
 func (f *Chan[T]) Set(closeVal *T) (old *T) {
 	f.mut.Lock()
 	defer f.mut.Unlock()
@@ -219,6 +215,10 @@ func (f *Chan[T]) Set(closeVal *T) (old *T) {
 
 // SetIfOpen is a no-op if the Chan is closed.
 // Otherwise, it behaves like Set().
+// SetIfOpen will still return the
+// current internal closeVal in old even if
+// it was not updated due to the Chan
+// being closed.
 func (f *Chan[T]) SetIfOpen(closeVal *T) (old *T) {
 	f.mut.Lock()
 	defer f.mut.Unlock()
@@ -255,7 +255,7 @@ func (f *Chan[T]) SetIfOpen(closeVal *T) (old *T) {
      ...
  // to wait for the status Chan to be closed:
  select {
- case <-status.WhenClosed:
+ case <-status.WhenClosed():
 	   val, isClosed := status.Read()
       ... react to val... (isClosed will always be true here).
 ~~~
