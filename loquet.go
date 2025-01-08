@@ -113,12 +113,13 @@ type Chan[T any] struct {
 	// the current version of closeVal
 	version int
 
-	// the old versions, size == retain.
+	// the old versions, len == retain.
 	past []VersionVal[T]
 }
 
 // VersionVal is used to store the past
-// versions of the closeVal.
+// versions of the closeVal in Val, along with
+// their version numbers in Version.
 type VersionVal[T any] struct {
 	Version int
 	Val     *T
@@ -344,12 +345,17 @@ func (f *Chan[T]) ReadVersion() (closeVal *T, isClosed bool, version int) {
 	return
 }
 
-func (f *Chan[T]) ReadOld() (closeVal *T, isClosed bool, version int) {
+// ReadPast copies the version history into
+// the provided slice d, returning the number of history items
+// that were copied. The oldest version will
+// be at d[0], the most recent (current) version will
+// be at d[numCopied-1]. Callers will typically
+// want to do d = d[:numCopied] after the call,
+// to properly size their d slice.
+func (f *Chan[T]) ReadPast(d []VersionVal[T]) (numCopied int) {
 	f.mut.Lock()
-	closeVal = f.closeVal
-	isClosed = f.isClosed
-	version = f.version
-	f.mut.Unlock()
+	defer f.mut.Unlock()
+	numCopied = copy(d, f.past)
 	return
 }
 
