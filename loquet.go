@@ -118,6 +118,21 @@ type Chan[T any] struct {
 // created to work around this limitation.
 // Users must never close() the WhenClosed() channel
 // themselves.
+//
+// Users should never store the received channel;
+// instead they should always call WhenClosed()
+// on the right hand side of a channel operation,
+// just in time when they need. Doing so preserves
+// our ability to experiment with a possible future
+// Reset() method that would re-open a closed Chan.
+//
+// ~~~
+//
+//	select {
+//	    case <-myLoquetChan.WhenClosed():
+//	        val, _ := myLoqetChan.Read()
+//
+// ~~~
 func (f *Chan[T]) WhenClosed() <-chan struct{} {
 	f.mut.Lock()
 	defer f.mut.Unlock()
