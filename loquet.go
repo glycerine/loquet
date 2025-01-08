@@ -1,8 +1,11 @@
 package loquet
 
 import (
+	"fmt"
 	"sync"
 )
+
+var ErrAlreadyClosed = fmt.Errorf("the loquet.Chan is already closed.")
 
 // Chan encapsulates in one convenient
 // place several common patterns that
@@ -176,7 +179,13 @@ func NewChan[T any](closeVal *T) *Chan[T] {
 //
 // If you need to update the internal closeVal
 // without closing the Chan, use Set or SetIfOpen.
-func (f *Chan[T]) Close(closeVal *T) {
+//
+// To broadcast a new nil value, use SetAndClose().
+//
+// The returned error will be ErrAlreadyClosed
+// if the Chan was already closed; otherwise
+// a nil error means that this closeVal was broadcast.
+func (f *Chan[T]) Close(closeVal *T) error {
 	f.mut.Lock()
 	defer f.mut.Unlock()
 
@@ -186,7 +195,7 @@ func (f *Chan[T]) Close(closeVal *T) {
 	// can always defer cancel while letting
 	// commit first succeed and be preserved.
 	if f.isClosed {
-		return
+		return ErrAlreadyClosed
 	}
 	f.isClosed = true
 
@@ -197,6 +206,7 @@ func (f *Chan[T]) Close(closeVal *T) {
 		f.closeVal = closeVal
 	}
 	close(f.whenClosed)
+	return nil
 }
 
 // Set changes the closeVal without
@@ -279,4 +289,26 @@ func (f *Chan[T]) ReOpen(closeVal *T) {
 	f.closeVal = closeVal
 	f.isClosed = false
 	f.whenClosed = make(chan struct{})
+}
+
+// SetAndClose atomically sets the closeVal
+// and closes the Chan. It returns the error
+// ErrAlreadyClosed and makes no changes
+// if the Chan is already
+// closed. As closeVal can be nil, SetAndClose
+// allows broadcasting a nil closeVal even
+// if NewChan was not called with nil. It
+// differs from Close in that Close(nil) does
+// not necessarily broadcast a nil, instead
+// defaulting to the already set closeVal.
+func (f *Chan[T]) SetAndClose(closeVal *T) error {
+	f.mut.Lock()
+	defer f.mut.Unlock()
+	if f.isClosed {
+		return ErrAlreadyClosed
+	}
+	f.closeVal = closeVal
+	f.isClosed = true
+	close(f.whenClosed)
+	return nil
 }
