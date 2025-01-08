@@ -8,7 +8,7 @@ import (
 // place several common patterns that
 // Go developers often find need of.
 //
-// The loqyet.Chan is similar to a Go channel, in that
+// The loquet.Chan is similar to a Go channel, in that
 // it conveys a value to readers after an
 // event, but offers two principal advantages
 // in the common case where there is only
