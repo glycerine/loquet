@@ -2,6 +2,8 @@ package loquet_test
 
 import (
 	"fmt"
+	"testing"
+	"time"
 
 	"github.com/glycerine/loquet"
 )
@@ -13,7 +15,7 @@ type Message struct {
 func doJob(msg *Message, reportBackOn *loquet.Chan[Message]) {
 
 	var err error
-	defer reportBackOn.Close(msg)
+	defer reportBackOn.CloseWith(msg)
 	//...
 	// might return early on error
 	if err != nil {
@@ -56,4 +58,39 @@ func ExampleLoquetChanUse() {
 		return
 	}
 
+}
+
+func TestOpenStopsClose(t *testing.T) {
+
+	ch := loquet.NewChan[int](nil, 0)
+	insideLoop := make(chan bool)
+	goroDone := make(chan bool)
+
+	go func() {
+		defer close(goroDone)
+		isClosed := false
+		for i := 0; true; i++ {
+			if isClosed {
+				ch.Open()
+				fmt.Printf("Open()-ed again!\n")
+				isClosed = false
+			}
+
+			fmt.Printf("about to block on WhenClosed\n")
+			if i == 0 {
+				close(insideLoop)
+			}
+			select {
+			case <-ch.WhenClosed():
+				fmt.Printf("closed!\n")
+				isClosed = true
+			case <-time.After(time.Second):
+				fmt.Printf("one second timeout waiting for close... returning\n")
+				return
+			}
+		}
+	}()
+	<-insideLoop
+	ch.Close()
+	<-goroDone
 }

@@ -184,6 +184,48 @@ func NewChan[T any](closeVal *T, retainVersions int) (f *Chan[T]) {
 	return f
 }
 
+// CloseWith provides an idempotent close of the
+// WhenClosed channel. Multiple calls to CloseWith
+// will result in only a single close of
+// WhenClosed.
+// This addresses a major design limitation of Go channels.
+// By using a Chan instead of a raw Go channel,
+// you need not worry about panic from repeated
+// closing.
+//
+// CloseWith takes a new closeVal to broadcast.
+//
+// CloseWith is a no-op if the Chan is already
+// closed. The supplied closeVal is then ignored
+// and the internal closeVal will not be updated.
+//
+// If you need to update the internal closeVal
+// without closing the Chan, use Set or SetIfOpen.
+//
+// The returned error will be ErrAlreadyClosed
+// if the Chan was already closed; otherwise
+// a nil error means that this closeVal was
+// stored internally and broadcast.
+func (f *Chan[T]) CloseWith(closeVal *T) error {
+	f.mut.Lock()
+	defer f.mut.Unlock()
+
+	if f.isClosed {
+		return ErrAlreadyClosed
+	}
+	f.isClosed = true
+	f.closeVal = closeVal
+	f.version++
+	if f.retain > 0 {
+		f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
+		if len(f.past) > f.retain {
+			f.past = f.past[1:] // discard the oldest
+		}
+	}
+	close(f.whenClosed)
+	return nil
+}
+
 // Close provides an idempotent close of the
 // WhenClosed channel. Multiple calls to Close
 // will result in only a single close of
@@ -193,56 +235,22 @@ func NewChan[T any](closeVal *T, retainVersions int) (f *Chan[T]) {
 // you need not worry about panic from repeated
 // closing.
 //
-// Close takes an optional (possibly nil) new closeVal
-// value to update the current closeVal (from Set or NewChan).
-//
-// Close(nil) is fine too, and a no-op. In this case,
-// the internal closeVal will
-// not be updated. This avoids the Close() calling
-// code needing to know about the appropriate closeVal;
-// a frequent case when coordinating goroutine shutdown
-// from multiple origins.
-//
 // Close is also a no-op if the Chan is already
-// closed. The supplied closeVal is then ignored
-// and the internal closeVal will not be updated.
-//
-// If you need to update the internal closeVal
-// without closing the Chan, use Set or SetIfOpen.
-//
-// To broadcast a new nil value, use SetAndClose().
+// closed.
 //
 // The returned error will be ErrAlreadyClosed
 // if the Chan was already closed; otherwise
-// a nil error means that this closeVal was
-// stored internally and broadcast.
-func (f *Chan[T]) Close(closeVal *T) error {
+// a nil error means that the WhenClosed
+// channel was closed and the internal closeVal
+// will be broadcast to Read() callers.
+func (f *Chan[T]) Close() error {
 	f.mut.Lock()
 	defer f.mut.Unlock()
 
-	// ensure only Closed once, and
-	// keep only the first close msg,
-	// so that transaction style cancel/commit
-	// can always defer cancel while letting
-	// commit first succeed and be preserved.
 	if f.isClosed {
 		return ErrAlreadyClosed
 	}
 	f.isClosed = true
-
-	// if closeVal is nil, leave f.closeVal as is.
-	// i.e. do not over-ride with nil, because closeVal
-	// may be already valid (from NewLoqet or Set).
-	if closeVal != nil {
-		f.closeVal = closeVal
-		f.version++
-		if f.retain > 0 {
-			f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
-			if len(f.past) > f.retain {
-				f.past = f.past[1:] // discard the oldest
-			}
-		}
-	}
 	close(f.whenClosed)
 	return nil
 }
@@ -394,33 +402,4 @@ func (f *Chan[T]) Open() {
 	}
 	f.isClosed = false
 	f.whenClosed = make(chan struct{})
-}
-
-// SetAndClose atomically sets the closeVal
-// and closes the Chan. It returns the error
-// ErrAlreadyClosed and makes no changes
-// if the Chan is already
-// closed. As closeVal can be nil, SetAndClose
-// allows broadcasting a nil closeVal even
-// if NewChan was not called with nil. It
-// differs from Close in that Close(nil) does
-// not necessarily broadcast a nil, instead
-// defaulting to the already set closeVal.
-func (f *Chan[T]) SetAndClose(closeVal *T) error {
-	f.mut.Lock()
-	defer f.mut.Unlock()
-	if f.isClosed {
-		return ErrAlreadyClosed
-	}
-	f.closeVal = closeVal
-	f.version++
-	if f.retain > 0 {
-		f.past = append(f.past, VersionVal[T]{Version: f.version, Val: closeVal})
-		if len(f.past) > f.retain {
-			f.past = f.past[1:] // discard the oldest
-		}
-	}
-	f.isClosed = true
-	close(f.whenClosed)
-	return nil
 }
