@@ -1,9 +1,11 @@
 loquet
 ======
 
-Loquet (French for "latch") provides a level-state based
-channel for Golang. Close is idempotent. The value
-Read() is valid after (and before) a Close().
+Package loquet (French for "latch") provides a channel with enhanced
+broadcast capabilities for Go. Close is now idempotent, and
+can broadcast a real value, not just the zero value.
+
+A loquet.Chan can be re-opened with a call to ReOpen().
 
 ----
 Author: Jason E. Aten, Ph.D.

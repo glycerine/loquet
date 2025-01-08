@@ -123,8 +123,7 @@ type Chan[T any] struct {
 // instead they should always call WhenClosed()
 // on the right hand side of a channel operation,
 // just in time when they need. Doing so preserves
-// our ability to experiment with a possible future
-// Reset() method that would re-open a closed Chan.
+// our ability ReOpen the Chan after being closed.
 //
 // ~~~
 //
@@ -139,6 +138,11 @@ func (f *Chan[T]) WhenClosed() <-chan struct{} {
 	return f.whenClosed
 }
 
+// NewChan creates a new Chan, given a type T.
+// Notice that the generic parameter is a T in Chan[T], but
+// all operations deal in *T. For example, if you have
+// `var closeVal *Message = &Message{}`, then
+// simply call `NewChan[Message](closeVal)`.
 func NewChan[T any](closeVal *T) *Chan[T] {
 	return &Chan[T]{
 		mut:        sync.Mutex{},
@@ -265,4 +269,14 @@ func (f *Chan[T]) Read() (closeVal *T, isClosed bool) {
 	closeVal, isClosed = f.closeVal, f.isClosed
 	f.mut.Unlock()
 	return
+}
+
+// ReOpen re-opens the Chan, atomically setting
+// the supplied closeVal on it.
+func (f *Chan[T]) ReOpen(closeVal *T) {
+	f.mut.Lock()
+	defer f.mut.Unlock()
+	f.closeVal = closeVal
+	f.isClosed = false
+	f.whenClosed = make(chan struct{})
 }
