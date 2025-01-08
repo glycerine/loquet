@@ -30,7 +30,7 @@ func ExampleLoquetChanUse() {
 	serviceShutdownCh := make(chan struct{})
 
 	msg := &Message{}
-	status := loquet.NewChan[Message](msg)
+	status := loquet.NewChan[Message](msg, 0)
 
 	go doJob(msg, status)
 
