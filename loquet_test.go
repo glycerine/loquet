@@ -10,7 +10,7 @@ type Message struct {
 	Err error
 }
 
-func doJob(msg *Message, reportBackOn *loquet.Loquet[Message]) {
+func doJob(msg *Message, reportBackOn *loquet.Chan[Message]) {
 
 	var err error
 	defer reportBackOn.Close(msg)
@@ -25,12 +25,12 @@ func doJob(msg *Message, reportBackOn *loquet.Loquet[Message]) {
 	fmt.Printf("job completed successfully.")
 }
 
-func ExampleLoquetUse() {
+func ExampleLoquetChanUse() {
 
 	serviceShutdownCh := make(chan struct{})
 
 	msg := &Message{}
-	status := loquet.NewLoquet[Message](msg)
+	status := loquet.NewChan[Message](msg)
 
 	go doJob(msg, status)
 
@@ -42,7 +42,7 @@ func ExampleLoquetUse() {
 	// wait for close like this.
 	select {
 
-	case <-status.WhenClosed:
+	case <-status.WhenClosed():
 		latest, isClosed := status.Read()
 		if !isClosed {
 			panic("(should be) impossible, isClosed should be true if WhenClosed() returns! so we can always latest, _ = status.Read() after WhenClosed()")
