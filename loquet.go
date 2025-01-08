@@ -143,7 +143,7 @@ type VersionVal[T any] struct {
 // instead they should always call WhenClosed()
 // on the right hand side of a channel operation,
 // just in time when they need. Doing so preserves
-// our ability ReOpen the Chan after being closed.
+// our ability to ReOpen the Chan after being closed.
 //
 // ~~~
 //
