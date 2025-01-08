@@ -7,6 +7,8 @@ can broadcast a real value, not just the zero value.
 
 A loquet.Chan can be re-opened with a call to ReOpen().
 
+The package docs have full details: https://pkg.go.dev/github.com/glycerine/loquet
+
 ----
 Author: Jason E. Aten, Ph.D.
 
