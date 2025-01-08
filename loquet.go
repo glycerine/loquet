@@ -126,7 +126,8 @@ type Chan[T any] struct {
 // instead they should always call WhenClosed()
 // on the right hand side of a channel operation,
 // just in time when they need. Doing so preserves
-// our ability to ReOpen the Chan after being closed.
+// our ability to update the internal channel in
+// the future if that becomes useful.
 //
 // ~~~
 //
@@ -152,7 +153,7 @@ func NewChan[T any](closeVal *T) (f *Chan[T]) {
 		whenClosed: make(chan struct{}),
 		closeVal:   closeVal,
 	}
-	return f
+	return
 }
 
 // CloseWith provides an idempotent close of the
@@ -290,34 +291,4 @@ func (f *Chan[T]) Read() (closeVal *T, isClosed bool) {
 	isClosed = f.isClosed
 	f.mut.Unlock()
 	return
-}
-
-// ReOpen re-opens the Chan, atomically setting
-// the supplied closeVal on it. See also Open.
-// Calling ReOpen on an already open Chan
-// just updates the internal closeVal to the
-// one supplied in this call.
-func (f *Chan[T]) ReOpen(closeVal *T) {
-	f.mut.Lock()
-	defer f.mut.Unlock()
-	f.closeVal = closeVal
-
-	if !f.isClosed {
-		return
-	}
-	f.isClosed = false
-	f.whenClosed = make(chan struct{})
-}
-
-// Open re-opens the Chan (if it was closed).
-// It does not change the closeVal inside.
-// If the Chan is already Open, this is a no-op.
-func (f *Chan[T]) Open() {
-	f.mut.Lock()
-	defer f.mut.Unlock()
-	if !f.isClosed {
-		return
-	}
-	f.isClosed = false
-	f.whenClosed = make(chan struct{})
 }
