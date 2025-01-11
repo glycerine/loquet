@@ -49,7 +49,7 @@ var ErrAlreadyClosed = fmt.Errorf("the loquet.Chan is already closed.")
 // by supplying it to the NewChan(closeVal) call.
 //
 // 2) The closeVal can also be set during closing
-// with Close(closeVal). Close(nil) is also
+// with CloseWith(closeVal). Close() is also
 // valid but will not alter an established closeVal.
 // This simplifies the code that closes the channel.
 // It can remain blissfully unaware of the appropriate
@@ -66,7 +66,7 @@ var ErrAlreadyClosed = fmt.Errorf("the loquet.Chan is already closed.")
 // the Set(closeVal) method. Set will not change the
 // closed/open status of the Chan. If you wish
 // to nil out an established closeVal, you must
-// use Set(). By design, Close(nil) does not change
+// use Set(). By design, Close() does not change
 // the closeVal. Set on a closed Chan is valid,
 // but there is then no universal guarantee that
 // all Read() calls will obtain the
