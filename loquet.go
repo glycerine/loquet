@@ -315,3 +315,16 @@ func (f *Chan[T]) ReadVersionAndReset(newCloseVal *T) (closeVal *T, version int6
 	f.mut.Unlock()
 	return
 }
+
+// ReadAndReset is the same as ReadVersionAndReset, except
+// that it doesn't return the version of the returned closeVal.
+func (f *Chan[T]) ReadAndReset(newCloseVal *T) (closeVal *T) {
+	f.mut.Lock()
+	closeVal = f.closeVal
+
+	f.isClosed = false
+	f.closeVal = newCloseVal
+	f.version++
+	f.mut.Unlock()
+	return
+}
