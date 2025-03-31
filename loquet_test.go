@@ -25,7 +25,8 @@ func doJob(msg *Message, reportBackOn *loquet.Chan[Message]) {
 	fmt.Printf("job completed successfully.")
 }
 
-func ExampleLoquetChanUse() {
+// example:
+func ExLoquetChanUse() {
 
 	serviceShutdownCh := make(chan struct{})
 

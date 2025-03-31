@@ -106,6 +106,7 @@ type Chan[T any] struct {
 	// we report from Read().
 	closeVal *T
 	isClosed bool
+	version  int64
 }
 
 // WhenClosed returns a channel that
@@ -187,6 +188,7 @@ func (f *Chan[T]) CloseWith(closeVal *T) error {
 	}
 	f.isClosed = true
 	f.closeVal = closeVal
+	f.version++
 	close(f.whenClosed)
 	return nil
 }
@@ -235,6 +237,7 @@ func (f *Chan[T]) Set(closeVal *T) (old *T) {
 	defer f.mut.Unlock()
 	old = f.closeVal
 	f.closeVal = closeVal
+	f.version++
 	return
 }
 
@@ -252,6 +255,7 @@ func (f *Chan[T]) SetIfOpen(closeVal *T) (old *T) {
 		return
 	}
 	f.closeVal = closeVal
+	f.version++
 	return
 }
 
@@ -289,6 +293,25 @@ func (f *Chan[T]) Read() (closeVal *T, isClosed bool) {
 	f.mut.Lock()
 	closeVal = f.closeVal
 	isClosed = f.isClosed
+	f.mut.Unlock()
+	return
+}
+
+// ReadVersionAndReset returns the current closeVal and
+// its version number, and atomically replaces the
+// internal closeVal with newCloseVal. This allows a
+// single reader to notice if they have missed any
+// version updates due to a race, and thereful do a full check
+// on state rather than the usual cheap only-check
+// state when the Chan is closed.
+func (f *Chan[T]) ReadVersionAndReset(newCloseVal *T) (closeVal *T, version int64) {
+	f.mut.Lock()
+	closeVal = f.closeVal
+	version = f.version
+
+	f.isClosed = false
+	f.closeVal = newCloseVal
+	f.version++
 	f.mut.Unlock()
 	return
 }
