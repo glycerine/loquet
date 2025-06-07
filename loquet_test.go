@@ -2,6 +2,7 @@ package loquet_test
 
 import (
 	"fmt"
+	"testing"
 
 	"github.com/glycerine/loquet"
 )
@@ -57,4 +58,8 @@ func ExLoquetChanUse() {
 		return
 	}
 
+}
+
+func Test001(t *testing.T) {
+	ExLoquetChanUse()
 }
